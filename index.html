@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColorMood</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    :root {
+      --text-color: #111;
+      --glass-bg: rgba(255, 255, 255, 0.2);
+      --glass-blur: blur(12px);
+      --box-shadow: rgba(0, 0, 0, 0.1);
+      --neon: rgba(255, 255, 255, 0.6);
+    }
+
+    body.dark {
+      --text-color: #eee;
+      --glass-bg: rgba(255, 255, 255, 0.1);
+      --box-shadow: rgba(255, 255, 255, 0.05);
+      --neon: rgba(255, 255, 255, 0.25);
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      color: var(--text-color);
+      background: linear-gradient(135deg, #ffffff, #f0f0f0);
+      background-size: 400% 400%;
+      animation: gradientBG 20s ease infinite;
+      transition: background 0.6s, color 0.3s;
+      overflow-x: hidden;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #blob-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    .main {
+      padding: 3rem 1rem;
+      max-width: 1000px;
+      margin: auto;
+      text-align: center;
+      animation: fadeIn 1s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      margin: 0;
+    }
+
+    #themeToggle {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      opacity: 0.8;
+      animation: fadeIn 1.2s ease;
+    }
+
+    .mood-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .mood-buttons button {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 12px 24px;
+      border-radius: 15px;
+      color: var(--text-color);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px var(--box-shadow);
+      animation: fadeIn 1.2s ease;
+    }
+
+    .mood-buttons button:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 15px var(--box-shadow);
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .color-box {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      padding: 1.5rem;
+      border-radius: 20px;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 20px var(--box-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 120px;
+      position: relative;
+      text-shadow: 1px 1px 2px #00000044;
+      user-select: none;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: boxFade 0.6s ease forwards;
+    }
+
+    @keyframes boxFade {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .color-box:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 30px var(--neon);
+      filter: brightness(1.1);
+    }
+
+    @media (max-width: 600px) {
+      .color-box {
+        height: 100px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="blob-canvas"></canvas>
+  <div class="main">
+    <header>
+      <h1>🎨 ColorMood</h1>
+      <button id="themeToggle">🌙</button>
+    </header>
+    <p class="subtitle">Choose your mood and get matching colors!</p>
+    <div class="mood-buttons">
+      <button onclick="generatePalette('calm')">Calm</button>
+      <button onclick="generatePalette('energetic')">Energetic</button>
+      <button onclick="generatePalette('romantic')">Romantic</button>
+      <button onclick="generatePalette('mystery')">Mystery</button>
+    </div>
+    <div class="palette-grid" id="palette"></div>
+  </div>
+
+  <audio id="clickSound" src="https://www.myinstants.com/media/sounds/button-click.mp3"></audio>
+
+  <script>
+    const moods = {
+      calm: ['#A8DADC', '#457B9D', '#1D3557', '#F1FAEE'],
+      energetic: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC'],
+      romantic: ['#FFC6FF', '#FFADAD', '#FFD6A5', '#CDB4DB'],
+      mystery: ['#3D405B', '#2A2D34', '#1A1C20', '#0D0D0D']
+    };
+
+    const moodGradients = {
+      calm: 'linear-gradient(135deg, #A8DADC, #457B9D)',
+      energetic: 'linear-gradient(135deg, #FF006E, #FFBE0B)',
+      romantic: 'linear-gradient(135deg, #FFC6FF, #FFADAD)',
+      mystery: 'linear-gradient(135deg, #1A1C20, #3D405B)'
+    };
+
+    const clickSound = document.getElementById('clickSound');
+
+    function generatePalette(mood) {
+      const palette = document.getElementById('palette');
+      palette.innerHTML = '';
+      document.body.style.background = moodGradients[mood];
+      clickSound.play();
+
+      moods[mood].forEach((color, i) => {
+        const box = document.createElement('div');
+        box.className = 'color-box';
+        box.style.backgroundColor = color;
+        box.style.animationDelay = `${i * 0.1}s`;
+
+        const label = document.createElement('span');
+        label.textContent = color;
+
+        box.appendChild(label);
+
+        box.onclick = () => {
+          navigator.clipboard.writeText(color);
+          label.textContent = 'Copied!';
+          clickSound.play();
+          setTimeout(() => (label.textContent = color), 1000);
+        };
+
+        palette.appendChild(box);
+      });
+    }
+
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+      const isDark = document.body.classList.contains('dark');
+      document.getElementById('themeToggle').textContent = isDark ? '☀️' : '🌙';
+      clickSound.play();
+    });
+
+    const canvas = document.getElementById('blob-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const blobs = Array.from({ length: 6 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      radius: Math.random() * 100 + 60,
+      dx: (Math.random() - 0.5) * 0.5,
+      dy: (Math.random() - 0.5) * 0.5,
+      color: `hsla(${Math.random() * 360}, 70%, 60%, 0.2)`
+    }));
+
+    function animateBlobs() {
+      ctx.clearRect(0, 0, width, height);
+      blobs.forEach(blob => {
+        ctx.beginPath();
+        ctx.arc(blob.x, blob.y, blob.radius, 0, Math.PI * 2);
+        ctx.fillStyle = blob.color;
+        ctx.fill();
+        blob.x += blob.dx;
+        blob.y += blob.dy;
+
+        if (blob.x < 0 || blob.x > width) blob.dx *= -1;
+        if (blob.y < 0 || blob.y > height) blob.dy *= -1;
+      });
+      requestAnimationFrame(animateBlobs);
+    }
+
+    animateBlobs();
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
